@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMessages } from "@/hooks/useMessages";
+import { getSupabase } from "@/lib/supabase";
 
 interface ListenerViewProps {
   onLeaveRoom?: () => void;
@@ -15,6 +16,25 @@ export function ListenerView({ onLeaveRoom, participantCount, joinedAt, hasSpoke
   const [input, setInput] = useState("");
   const [replyToId, setReplyToId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [speakerName, setSpeakerName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const sb = getSupabase();
+    if (!sb) return;
+    const load = async () => {
+      const { data } = await sb.from("participants").select("display_name, role").eq("role", "speaker").limit(1);
+      const n = (data as any[])?.[0]?.display_name ?? null;
+      setSpeakerName(n);
+    };
+    load();
+    const channel = sb
+      .channel("listener-speaker-name")
+      .on("postgres_changes", { event: "*", schema: "public", table: "participants" }, () => load())
+      .subscribe();
+    return () => {
+      sb.removeChannel(channel);
+    };
+  }, []);
 
   const handleSend = async () => {
     const trimmed = input.trim();
@@ -36,6 +56,7 @@ export function ListenerView({ onLeaveRoom, participantCount, joinedAt, hasSpoke
           <p className="text-xs text-gray-500 mt-2 max-w-sm">
             You can send one anonymous reply. Only the Speaker will see it.
           </p>
+          <p className="text-sm text-gray-800 mt-2">Speaker: {speakerName ?? "Active"}</p>
           {hasSpokenToday && (
             <p className="text-sm text-red-600 mt-2">您今天已经发言过，请等待其余发言者。</p>
           )}

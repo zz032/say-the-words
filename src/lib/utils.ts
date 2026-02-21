@@ -65,3 +65,19 @@ export function getCurrentPeriodStart(): Date {
     Date.UTC(year, month, periodDate, 6, 0, 0, 0) - 8 * 60 * 60 * 1000;
   return new Date(utcMs);
 }
+
+export function getSpeakerName(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem("say-the-words-speaker-name");
+  } catch {
+    return null;
+  }
+}
+
+export function setSpeakerName(name: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem("say-the-words-speaker-name", name);
+  } catch {}
+}

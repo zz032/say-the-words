@@ -138,7 +138,9 @@ export default function AdminObserver() {
         </div>
         <div className="rounded-xl border border-gray-200 p-4">
           <p className="text-xs text-gray-500 mb-1">Current Speaker</p>
-          <p className="text-lg font-medium">{speaker ? "Active" : "None"}</p>
+          <p className="text-lg font-medium">
+            {speaker ? (speaker as any).display_name || "Active" : "None"}
+          </p>
         </div>
         <div className="rounded-xl border border-gray-200 p-4">
           <p className="text-xs text-gray-500 mb-1">Participants (Speaker + Listeners)</p>
@@ -162,7 +164,7 @@ export default function AdminObserver() {
                   {p.role === "admin"
                     ? "Admin"
                     : p.role === "speaker"
-                    ? "Speaker"
+                    ? `Speaker${(p as any).display_name ? ` (${(p as any).display_name})` : ""}`
                     : `Listener #${index}`}
                 </span>
                 <span className="text-xs text-gray-400">{new Date(p.joined_at).toLocaleTimeString()}</span>

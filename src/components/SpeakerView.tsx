@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { useMessages } from "@/hooks/useMessages";
+import { getSpeakerName, setSpeakerName, getUserId } from "@/lib/utils";
 
 const SPEAKER_DAILY_LIMIT = 3;
 
@@ -20,6 +21,37 @@ export function SpeakerView({ role, onLeaveRoom, participantCount, joinedAt }: S
     sendMessage,
   } = useMessages(role, joinedAt);
   const [input, setInput] = useState("");
+  const [name, setName] = useState<string | null>(null);
+  const [nameInput, setNameInput] = useState("");
+  const [namePromptOpen, setNamePromptOpen] = useState(false);
+
+  useEffect(() => {
+    if (role !== "speaker") return;
+    const local = getSpeakerName();
+    setName(local);
+    if (!local) {
+      setNamePromptOpen(true);
+    } else {
+      const sb = getSupabase();
+      const uid = getUserId();
+      if (sb && uid) {
+        sb.from("participants").update({ display_name: local }).eq("user_id", uid);
+      }
+    }
+  }, [role]);
+
+  const confirmName = async () => {
+    const trimmed = nameInput.trim();
+    if (!trimmed) return;
+    setSpeakerName(trimmed);
+    setName(trimmed);
+    setNamePromptOpen(false);
+    const sb = getSupabase();
+    const uid = getUserId();
+    if (sb && uid) {
+      await sb.from("participants").update({ display_name: trimmed }).eq("user_id", uid);
+    }
+  };
 
   const handleSend = async () => {
     const trimmed = input.trim();
@@ -36,6 +68,9 @@ export function SpeakerView({ role, onLeaveRoom, participantCount, joinedAt }: S
           <p className="text-lg font-medium text-black">
             You are the {role === "admin" ? "Admin" : "Speaker"}
           </p>
+          {role === "speaker" && (
+            <p className="text-sm text-gray-800 mt-1">Name: {name ?? "未设置"}</p>
+          )}
           <p className="text-sm text-gray-600 mt-1">
             Remaining: {speakerRemaining} / {SPEAKER_DAILY_LIMIT}
           </p>
@@ -135,6 +170,23 @@ export function SpeakerView({ role, onLeaveRoom, participantCount, joinedAt }: S
 
       {/* Input */}
       <div className="flex gap-2">
+        {role === "speaker" && namePromptOpen && (
+          <div className="flex items-center gap-2 mb-2 w-full">
+            <input
+              type="text"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              placeholder="请输入你的名字"
+              className="flex-1 px-3 py-2 rounded-lg border border-gray-300"
+            />
+            <button
+              onClick={confirmName}
+              className="px-3 py-2 rounded-lg bg-black text-white"
+            >
+              保存
+            </button>
+          </div>
+        )}
         <input
           type="text"
           value={input}

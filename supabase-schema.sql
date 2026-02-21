@@ -49,6 +49,7 @@ CREATE POLICY "Allow all on messages" ON messages FOR ALL USING (true) WITH CHEC
 
 -- If adding reply_to after initial deploy, ensure column exists
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to UUID NULL;
+ALTER TABLE participants ADD COLUMN IF NOT EXISTS display_name TEXT;
 
 -- Archives: store exported chat rounds and metadata for admin inspection
 CREATE TABLE IF NOT EXISTS archives (
