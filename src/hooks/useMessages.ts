@@ -15,7 +15,7 @@ export interface DisplayMessage {
   createdAt: string;
 }
 
-// Admin and Speaker both see full chat and can send; Listeners see only speaker/admin messages
+// Admin 和 Speaker 都可以看到全部消息且可以发送
 const CAN_SEND_AND_SEE_ALL: Role[] = ["admin", "speaker"];
 
 export function useMessages(role: Role | null) {
@@ -38,6 +38,7 @@ export function useMessages(role: Role | null) {
     const periodStart = getCurrentPeriodStart();
 
     if (role && CAN_SEND_AND_SEE_ALL.includes(role)) {
+      // 计算今日 speaker 剩余次数
       const myMessages = (data ?? []).filter(
         (m) =>
           (m.sender_role === "speaker" || m.sender_role === "admin") &&
@@ -89,16 +90,17 @@ export function useMessages(role: Role | null) {
     }
   }, [role, userId]);
 
+  // 初始加载
   useEffect(() => {
     fetchMessages();
   }, [fetchMessages]);
 
-  // 修复后的 useEffect：不返回 Promise，清理函数同步
+  // 实时订阅消息变动
   useEffect(() => {
     const channel = supabase.channel("messages-changes");
 
+    // 异步函数内部捕获错误，保证 useEffect 返回值同步
     const handler = () => {
-      // 异步调用 fetchMessages，但不返回给 useEffect
       fetchMessages().catch(console.error);
     };
 
