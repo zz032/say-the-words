@@ -15,6 +15,8 @@ export interface DisplayMessage {
   createdAt: string;
   replyCount?: number;
   myReplyContent?: string | null;
+  replyToId?: string | null;
+  replyToContent?: string | null;
 }
 
 // Admin 和 Speaker 都可以看到全部消息且可以发送
@@ -76,12 +78,17 @@ export function useMessages(role: Role | null, joinedAt?: string | null) {
           } as DisplayMessage;
         })
         .concat(
-          listenerReplies.map((m) => ({
-            id: m.id,
-            content: m.content,
-            isSpeaker: false,
-            createdAt: m.created_at,
-          }))
+          listenerReplies.map((m) => {
+            const ref = speakerAdminMessages.find((s) => s.id === m.reply_to);
+            return {
+              id: m.id,
+              content: m.content,
+              isSpeaker: false,
+              createdAt: m.created_at,
+              replyToId: m.reply_to ?? null,
+              replyToContent: ref ? ref.content : null,
+            } as DisplayMessage;
+          })
         )
         .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
@@ -152,14 +159,22 @@ export function useMessages(role: Role | null, joinedAt?: string | null) {
 
       if (CAN_SEND_AND_SEE_ALL.includes(role)) {
         if (speakerRemaining <= 0) return;
-        const { data, error } = await supabase.from("messages").insert({
-          content: content.trim(),
-          sender_role: role,
-          sender_user_id: userId,
-          reply_to: null,
-        }).select();
+        const { data, error } = await supabase
+          .from("messages")
+          .insert({
+            content: content.trim(),
+            sender_role: role,
+            sender_user_id: userId,
+            // omit reply_to for admin/speaker to avoid 400 if column missing
+          })
+          .select();
         if (error) {
-          console.error("Failed to send speaker message:", error);
+          console.error("Failed to send speaker message:", {
+            message: (error as any)?.message,
+            details: (error as any)?.details,
+            hint: (error as any)?.hint,
+            code: (error as any)?.code,
+          });
           return;
         }
         console.log("Speaker message sent:", data);
@@ -179,7 +194,12 @@ export function useMessages(role: Role | null, joinedAt?: string | null) {
           reply_to: replyTo,
         }).select();
         if (error) {
-          console.error("Failed to send listener message:", error);
+          console.error("Failed to send listener message:", {
+            message: (error as any)?.message,
+            details: (error as any)?.details,
+            hint: (error as any)?.hint,
+            code: (error as any)?.code,
+          });
           return;
         }
         console.log("Listener message sent:", data);

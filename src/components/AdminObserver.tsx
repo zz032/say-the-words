@@ -184,6 +184,13 @@ export default function AdminObserver() {
                   <span className="text-[11px] text-gray-400">{new Date(m.created_at).toLocaleTimeString()}</span>
                 </div>
                 <div className="px-3 py-2 rounded-xl bg-gray-50 text-sm text-gray-900">{m.content}</div>
+                {m.sender_role === "listener" && m.reply_to && (
+                  <div className="px-3">
+                    <span className="text-[11px] text-gray-500">
+                      ↪ 引用: {(messages.find((x) => x.id === m.reply_to)?.content) || "未知消息"}
+                    </span>
+                  </div>
+                )}
               </div>
             ))}
           </div>

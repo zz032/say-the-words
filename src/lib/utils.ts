@@ -4,12 +4,32 @@
  */
 export function getUserId(): string {
   if (typeof window === "undefined") return "";
-  let id = localStorage.getItem("say-the-words-user-id");
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem("say-the-words-user-id", id);
+  let storage: Storage | null = null;
+  try {
+    storage = window.localStorage;
+  } catch {
+    storage = null;
   }
-  return id;
+  let id = storage ? storage.getItem("say-the-words-user-id") : null;
+  if (!id) {
+    let newId: string;
+    try {
+      if (typeof crypto !== "undefined" && typeof (crypto as any).randomUUID === "function") {
+        newId = (crypto as any).randomUUID();
+      } else {
+        const s4 = () => Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
+        newId = `${s4()}${s4()}-${s4()}-${s4()}-${s4()}-${s4()}${s4()}${s4()}`;
+      }
+    } catch {
+      const s4 = () => Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
+      newId = `${s4()}${s4()}-${s4()}-${s4()}-${s4()}-${s4()}${s4()}${s4()}`;
+    }
+    id = newId;
+    try {
+      if (storage) storage.setItem("say-the-words-user-id", id);
+    } catch {}
+  }
+  return id as string;
 }
 
 /**

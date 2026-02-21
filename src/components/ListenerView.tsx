@@ -13,15 +13,17 @@ interface ListenerViewProps {
 export function ListenerView({ onLeaveRoom, participantCount, joinedAt, hasSpokenToday }: ListenerViewProps) {
   const { messages, listenerHasReplied, sendMessage } = useMessages("listener", joinedAt);
   const [input, setInput] = useState("");
+  const [replyToId, setReplyToId] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
 
   const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed || listenerHasReplied) return;
-    // Reply to the latest speaker message; if none exist, do not allow sending
-    const lastSpeaker = messages.slice().reverse().find((m) => m.isSpeaker);
-    if (!lastSpeaker) return; // nothing to reply to
-    const replyTo = lastSpeaker.id;
-    await sendMessage(trimmed, replyTo);
+    if (!replyToId) return;
+    if (sending) return;
+    setSending(true);
+    await sendMessage(trimmed, replyToId);
+    setSending(false);
     setInput("");
   };
 
@@ -62,6 +64,14 @@ export function ListenerView({ onLeaveRoom, participantCount, joinedAt, hasSpoke
                 {typeof msg.replyCount === "number" && (
                   <p className="text-xs text-gray-500 mt-1">Replies: {msg.replyCount}</p>
                 )}
+                <div className="mt-2">
+                  <button
+                    className="text-xs text-blue-600 hover:underline"
+                    onClick={() => setReplyToId(msg.id)}
+                  >
+                    回复此消息
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -84,7 +94,6 @@ export function ListenerView({ onLeaveRoom, participantCount, joinedAt, hasSpoke
           </p>
         ) : (
           <div className="flex flex-col gap-2">
-            {/* 如果没有任何 speaker 消息，禁用输入并提示 */}
             {messages.filter((m) => m.isSpeaker).length === 0 ? (
               <p className="text-sm text-gray-500 py-2">等待发言者发言后才能回复。</p>
             ) : (
@@ -93,16 +102,29 @@ export function ListenerView({ onLeaveRoom, participantCount, joinedAt, hasSpoke
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSend()}
                   placeholder="Type your reply..."
                   className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-300"
                 />
                 <button
                   onClick={handleSend}
-                  disabled={!input.trim()}
+                  disabled={!input.trim() || !replyToId || sending}
                   className="px-5 py-3 rounded-xl bg-black text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-800 transition"
                 >
                   Send
+                </button>
+              </div>
+            )}
+            {replyToId && (
+              <div className="text-xs text-gray-500">
+                正在回复：
+                <span className="text-gray-700">
+                  {messages.find((m) => m.id === replyToId)?.content ?? ""}
+                </span>
+                <button
+                  className="ml-2 text-blue-600 hover:underline"
+                  onClick={() => setReplyToId(null)}
+                >
+                  取消引用
                 </button>
               </div>
             )}

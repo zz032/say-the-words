@@ -121,7 +121,12 @@ export function SpeakerView({ role, onLeaveRoom, participantCount, joinedAt }: S
                 <p className="text-xs text-gray-300 mt-1">Replies: {msg.replyCount}</p>
               )}
               {!msg.isSpeaker && (
-                <p className="text-xs text-gray-500 mt-1">Anonymous reply</p>
+                <div className="mt-1">
+                  <p className="text-xs text-gray-500">Anonymous reply</p>
+                  {msg.replyToContent && (
+                    <p className="text-[11px] text-gray-400 mt-0.5">↪ 引用: {msg.replyToContent}</p>
+                  )}
+                </div>
               )}
             </div>
           </div>
