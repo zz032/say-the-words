@@ -20,7 +20,7 @@ const CAN_SEND_AND_SEE_ALL: Role[] = ["admin", "speaker"];
 
 export function useMessages(role: Role | null) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
-  const [speakerRemaining, setSpeakerRemaining] = useState<number>(3);
+  const [speakerRemaining, setSpeakerRemaining] = useState<number>(SPEAKER_DAILY_LIMIT);
   const [listenerHasReplied, setListenerHasReplied] = useState<boolean>(false);
   const userId = typeof window !== "undefined" ? getUserId() : "";
 
@@ -44,16 +44,12 @@ export function useMessages(role: Role | null) {
           m.sender_user_id === userId &&
           new Date(m.created_at) >= periodStart
       );
-      setSpeakerRemaining(
-        Math.max(0, SPEAKER_DAILY_LIMIT - myMessages.length)
-      );
+      setSpeakerRemaining(Math.max(0, SPEAKER_DAILY_LIMIT - myMessages.length));
 
       const speakerAdminMessages = (data ?? []).filter((m) =>
         ["speaker", "admin"].includes(m.sender_role)
       );
-      const listenerReplies = (data ?? []).filter(
-        (m) => m.sender_role === "listener"
-      );
+      const listenerReplies = (data ?? []).filter((m) => m.sender_role === "listener");
 
       const combined: DisplayMessage[] = [
         ...speakerAdminMessages.map((m) => ({
@@ -69,15 +65,13 @@ export function useMessages(role: Role | null) {
           createdAt: m.created_at,
         })),
       ].sort(
-        (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
       );
 
       setMessages(combined);
     } else if (role === "listener") {
       const hasReplied = (data ?? []).some(
-        (m) =>
-          m.sender_role === "listener" && m.sender_user_id === userId
+        (m) => m.sender_role === "listener" && m.sender_user_id === userId
       );
       setListenerHasReplied(hasReplied);
 
@@ -95,25 +89,29 @@ export function useMessages(role: Role | null) {
     }
   }, [role, userId]);
 
+  // 初次加载消息
   useEffect(() => {
     fetchMessages();
   }, [fetchMessages]);
 
+  // 订阅 Supabase 消息变化
   useEffect(() => {
-  const channel = supabase
-    .channel("messages-changes")
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "messages" },
-      () => fetchMessages()
-    )
-    .subscribe();
+    const channel = supabase
+      .channel("messages-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "messages" },
+        () => {
+          fetchMessages(); // 异步操作在这里调用，不返回 Promise
+        }
+      )
+      .subscribe();
 
-  // 同步清理函数，组件卸载时取消订阅
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, [fetchMessages]);
+    // 同步清理函数，组件卸载时取消订阅
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchMessages]);
 
   const sendMessage = useCallback(
     async (content: string) => {
