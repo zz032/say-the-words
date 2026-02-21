@@ -99,7 +99,7 @@ export function useMessages(role: Role | null) {
     const channel = supabase.channel("messages-changes");
 
     const handler = () => {
-      fetchMessages().catch(console.error); // 内部异步处理
+      fetchMessages().catch(console.error); // 异步处理内部执行即可
     };
 
     channel.on(
@@ -110,7 +110,7 @@ export function useMessages(role: Role | null) {
 
     channel.subscribe();
 
-    // 返回同步清理函数
+    // ❗ 这里返回同步函数，不加 async
     return () => {
       supabase.removeChannel(channel);
     };
