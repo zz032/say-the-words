@@ -138,7 +138,9 @@ export function useRoom() {
       )
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [joinRoom]);
 
   const leaveRoom = useCallback(async () => {
