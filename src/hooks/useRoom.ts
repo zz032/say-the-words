@@ -46,6 +46,11 @@ export function useRoom() {
 
     const adminId = roomConfig?.admin_id ?? null;
 
+    // Current participant count excluding admin
+    const participantCount = (participants ?? []).filter((p) =>
+      ["speaker", "listener"].includes(p.role)
+    ).length;
+
     // Returning user: restore their role, no duplicate
     const existing = participants?.find((p) => p.user_id === userId);
     if (existing) {
@@ -78,10 +83,6 @@ export function useRoom() {
     }
 
     // New user: check capacity (Admin does NOT count)
-    const participantCount = (participants ?? []).filter((p) =>
-      ["speaker", "listener"].includes(p.role)
-    ).length;
-
     if (participantCount >= MAX_PARTICIPANTS) {
       setRoomStatus({ status: "full" });
       return;
