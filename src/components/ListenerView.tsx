@@ -18,7 +18,7 @@ export function ListenerView({ onLeaveRoom, participantCount, joinedAt, hasSpoke
 
   const handleSend = async () => {
     const trimmed = input.trim();
-    if (!trimmed || listenerHasReplied) return;
+    if (!trimmed) return;
     if (!replyToId) return;
     if (sending) return;
     setSending(true);
@@ -88,48 +88,48 @@ export function ListenerView({ onLeaveRoom, participantCount, joinedAt, hasSpoke
 
       {/* Input */}
       <div className="flex flex-col gap-2">
-        {listenerHasReplied ? (
-          <p className="text-sm text-gray-500 py-2">
-            You have completed your reply.
-          </p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {messages.filter((m) => m.isSpeaker).length === 0 ? (
-              <p className="text-sm text-gray-500 py-2">等待发言者发言后才能回复。</p>
-            ) : (
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Type your reply..."
-                  className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-300"
-                />
-                <button
-                  onClick={handleSend}
-                  disabled={!input.trim() || !replyToId || sending}
-                  className="px-5 py-3 rounded-xl bg-black text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-800 transition"
-                >
-                  Send
-                </button>
-              </div>
-            )}
-            {replyToId && (
-              <div className="text-xs text-gray-500">
-                正在回复：
-                <span className="text-gray-700">
-                  {messages.find((m) => m.id === replyToId)?.content ?? ""}
-                </span>
-                <button
-                  className="ml-2 text-blue-600 hover:underline"
-                  onClick={() => setReplyToId(null)}
-                >
-                  取消引用
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+        <div className="flex flex-col gap-2">
+          {messages.filter((m) => m.isSpeaker).length === 0 ? (
+            <p className="text-sm text-gray-500 py-2">等待发言者发言后才能回复。</p>
+          ) : (
+            <>
+              {replyToId && messages.find((m) => m.id === replyToId)?.myReplyContent ? (
+                <p className="text-sm text-gray-500 py-2">You have completed your reply for this message.</p>
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Type your reply..."
+                    className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                  />
+                  <button
+                    onClick={handleSend}
+                    disabled={!input.trim() || !replyToId || sending}
+                    className="px-5 py-3 rounded-xl bg-black text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-800 transition"
+                  >
+                    Send
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+          {replyToId && (
+            <div className="text-xs text-gray-500">
+              正在回复：
+              <span className="text-gray-700">
+                {messages.find((m) => m.id === replyToId)?.content ?? ""}
+              </span>
+              <button
+                className="ml-2 text-blue-600 hover:underline"
+                onClick={() => setReplyToId(null)}
+              >
+                取消引用
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

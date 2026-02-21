@@ -184,9 +184,11 @@ export function useMessages(role: Role | null, joinedAt?: string | null) {
           fetchMessages().catch((e) => console.error("Fallback refresh failed:", e));
         }, 300);
       } else if (role === "listener") {
-        if (listenerHasReplied) return;
         // Listeners must reply to an existing speaker message
         if (!replyTo) return;
+        // Allow one reply per specific speaker message
+        const already = messages.find((m) => m.id === replyTo && !!m.myReplyContent);
+        if (already) return;
         const { data, error } = await supabase.from("messages").insert({
           content: content.trim(),
           sender_role: "listener",
@@ -209,7 +211,7 @@ export function useMessages(role: Role | null, joinedAt?: string | null) {
         }, 300);
       }
     },
-    [userId, role, speakerRemaining, listenerHasReplied, fetchMessages]
+    [userId, role, speakerRemaining, messages, fetchMessages]
   );
 
   return {
