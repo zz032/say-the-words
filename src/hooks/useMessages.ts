@@ -94,20 +94,22 @@ export function useMessages(role: Role | null) {
     fetchMessages();
   }, [fetchMessages]);
 
-  // 订阅 Supabase 消息变化
+  // 订阅 Supabase 消息变化（修正版，避免返回 Promise）
   useEffect(() => {
-    const channel = supabase
-      .channel("messages-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "messages" },
-        () => {
-          fetchMessages(); // 异步操作在这里调用，不返回 Promise
-        }
-      )
-      .subscribe();
+    const channel = supabase.channel("messages-changes");
 
-    // 同步清理函数，组件卸载时取消订阅
+    channel.on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "messages" },
+      () => {
+        // 异步调用 fetchMessages，但不会返回给 useEffect
+        fetchMessages().catch(console.error);
+      }
+    );
+
+    channel.subscribe();
+
+    // 同步清理函数
     return () => {
       supabase.removeChannel(channel);
     };
