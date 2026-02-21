@@ -5,7 +5,7 @@ import { SpeakerView } from "@/components/SpeakerView";
 import { ListenerView } from "@/components/ListenerView";
 
 export default function Home() {
-  const { roomStatus, leaveRoom, joinRoom } = useRoom();  // Hook 放在最上面
+  const { roomStatus, leaveRoom, joinRoom } = useRoom();
 
   const hasSupabaseConfig =
     typeof process.env.NEXT_PUBLIC_SUPABASE_URL === "string" &&
