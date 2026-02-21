@@ -3,6 +3,9 @@
 import { useRoom } from "@/hooks/useRoom";
 import { SpeakerView } from "@/components/SpeakerView";
 import { ListenerView } from "@/components/ListenerView";
+import dynamic from "next/dynamic";
+
+const AdminObserver = dynamic(() => import("@/components/AdminObserver"), { ssr: false });
 
 export default function Home() {
   const { roomStatus, leaveRoom, joinRoom } = useRoom();
@@ -36,6 +39,24 @@ export default function Home() {
     );
   }
 
+  if ((roomStatus as any).status === "error") {
+    const msg = (roomStatus as any).message ?? "Unknown error";
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6">
+        <p className="text-center text-lg text-red-600">Error joining room</p>
+        <p className="text-center text-sm text-gray-600 max-w-md">{msg}</p>
+        <div className="pt-4">
+          <button
+            onClick={joinRoom}
+            className="px-5 py-3 rounded-xl bg-black text-white font-medium hover:bg-gray-800 transition"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (roomStatus.status === "full") {
     return (
       <div className="min-h-screen flex items-center justify-center px-6">
@@ -61,6 +82,11 @@ export default function Home() {
   }
 
   if (roomStatus.status === "joined") {
+    // If URL contains ?admin=godmode, open observer dashboard (does not join)
+    const isGodmode = typeof window !== "undefined" && window.location.search.includes("admin=godmode");
+    if (isGodmode) {
+      return <AdminObserver />;
+    }
     if (roomStatus.role === "admin" || roomStatus.role === "speaker") {
       return (
         <SpeakerView

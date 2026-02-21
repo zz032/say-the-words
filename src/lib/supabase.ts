@@ -1,9 +1,24 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Export a shared Supabase client for convenience (used by pages/components)
+export const supabase: SupabaseClient | null =
+  supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
+
+let _supabase: SupabaseClient | null = null;
+
+export function getSupabase(): SupabaseClient | null {
+  if (_supabase) return _supabase;
+  if (supabase) {
+    _supabase = supabase;
+    return _supabase;
+  }
+  if (!supabaseUrl || !supabaseAnonKey) return null;
+  _supabase = createClient(supabaseUrl, supabaseAnonKey);
+  return _supabase;
+}
 
 // Database types
 export type Role = "admin" | "speaker" | "listener";

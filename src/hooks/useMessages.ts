@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { getUserId } from "@/lib/utils";
 import { getCurrentPeriodStart } from "@/lib/utils";
 import type { Role } from "@/lib/supabase";
@@ -25,6 +25,11 @@ export function useMessages(role: Role | null) {
   const userId = typeof window !== "undefined" ? getUserId() : "";
 
   const fetchMessages = useCallback(async () => {
+    const supabase = getSupabase();
+    if (!supabase) {
+      console.error("Supabase not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.");
+      return;
+    }
     const { data, error } = await supabase
       .from("messages")
       .select("*")
@@ -96,6 +101,9 @@ export function useMessages(role: Role | null) {
 
   // 实时订阅消息变动，确保返回同步清理函数
   useEffect(() => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+
     const channel = supabase.channel("messages-changes");
 
     const handler = () => {
@@ -119,6 +127,9 @@ export function useMessages(role: Role | null) {
   const sendMessage = useCallback(
     async (content: string) => {
       if (!userId || !role) return;
+
+      const supabase = getSupabase();
+      if (!supabase) return;
 
       if (CAN_SEND_AND_SEE_ALL.includes(role)) {
         if (speakerRemaining <= 0) return;

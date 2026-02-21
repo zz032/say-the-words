@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { getUserId } from "@/lib/utils";
 import type { Participant, Role } from "@/lib/supabase";
 
@@ -9,6 +9,7 @@ const MAX_PARTICIPANTS = 11; // Speaker + Listeners (Admin does NOT count)
 
 export type RoomStatus =
   | { status: "loading" }
+  | { status: "error"; message: string }
   | { status: "full" }
   | { status: "left" }
   | { status: "joined"; role: Role; participant: Participant };
@@ -19,6 +20,12 @@ export function useRoom() {
 
   const joinRoom = useCallback(async () => {
     if (!userId) return;
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      setRoomStatus({ status: "error", message: "Supabase not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY." });
+      return;
+    }
 
     const [
       { data: participants, error: participantsError },
@@ -33,7 +40,7 @@ export function useRoom() {
 
     if (participantsError) {
       console.error("Failed to fetch participants:", participantsError);
-      setRoomStatus({ status: "loading" });
+      setRoomStatus({ status: "error", message: `Failed to fetch participants: ${participantsError.message ?? participantsError}` });
       return;
     }
 
@@ -50,25 +57,21 @@ export function useRoom() {
       return;
     }
 
-    // Admin returning (was in room, left, coming back): always assign ADMIN
+    // Admin returning (invisible admin stored in room_config): do NOT insert into participants
     if (adminId && userId === adminId) {
-      const { data: newParticipant, error: insertError } = await supabase
-        .from("participants")
-        .insert({
-          user_id: userId,
-          role: "admin",
-          joined_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
+      const fakeParticipant: Participant = {
+        id: `admin-${userId}` as any,
+        user_id: userId,
+        role: "admin",
+        joined_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+      } as Participant;
 
-      if (!insertError) {
-        setRoomStatus({
-          status: "joined",
-          role: "admin",
-          participant: newParticipant as Participant,
-        });
-      }
+      setRoomStatus({
+        status: "joined",
+        role: "admin",
+        participant: fakeParticipant,
+      });
       return;
     }
 
@@ -82,7 +85,7 @@ export function useRoom() {
       return;
     }
 
-    // Assign role: first user = ADMIN, second = SPEAKER, rest = LISTENER
+    // Assign role: first visitor => invisible admin (stored in room_config only), second => speaker, others => listener
     let role: Role;
     if (!adminId) {
       role = "admin";
@@ -92,6 +95,32 @@ export function useRoom() {
       role = "listener";
     }
 
+    // Invisible admin: set room_config.admin_id but DO NOT insert into participants
+    if (role === "admin") {
+      const { error: cfgError } = await supabase
+        .from("room_config")
+        .update({ admin_id: userId, updated_at: new Date().toISOString() })
+        .eq("id", 1);
+
+      if (cfgError) {
+        console.error("Failed to set room admin:", cfgError);
+        setRoomStatus({ status: "error", message: `Failed to set room admin: ${cfgError.message ?? cfgError}` });
+        return;
+      }
+
+      const fakeParticipant: Participant = {
+        id: `admin-${userId}` as any,
+        user_id: userId,
+        role: "admin",
+        joined_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+      } as Participant;
+
+      setRoomStatus({ status: "joined", role: "admin", participant: fakeParticipant });
+      return;
+    }
+
+    // Normal participant insertion (speaker or listener)
     const { data: newParticipant, error: insertError } = await supabase
       .from("participants")
       .insert({
@@ -104,16 +133,8 @@ export function useRoom() {
 
     if (insertError) {
       console.error("Failed to join room:", insertError);
-      setRoomStatus({ status: "loading" });
+      setRoomStatus({ status: "error", message: `Failed to join room: ${insertError.message ?? insertError}` });
       return;
-    }
-
-    // First user (admin): store adminId in room_config
-    if (role === "admin") {
-      await supabase
-        .from("room_config")
-        .update({ admin_id: userId, updated_at: new Date().toISOString() })
-        .eq("id", 1);
     }
 
     setRoomStatus({
@@ -129,6 +150,9 @@ export function useRoom() {
 
   // Subscribe to participant changes (speaker promotion, etc.)
   useEffect(() => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+
     const channel = supabase
       .channel("participants-changes")
       .on(
@@ -146,12 +170,27 @@ export function useRoom() {
   const leaveRoom = useCallback(async () => {
     if (!userId) return;
 
+    const supabase = getSupabase();
+    if (!supabase) return;
+
     const { data: participants } = await supabase
       .from("participants")
       .select("*")
       .order("joined_at", { ascending: true });
 
     const currentUser = participants?.find((p) => p.user_id === userId);
+    // If the current user is the invisible admin (not in participants), clear room_config.admin_id
+    const { data: roomConfig } = await supabase.from("room_config").select("admin_id").eq("id", 1).single();
+    const adminId = roomConfig?.admin_id ?? null;
+
+    if (adminId && userId === adminId) {
+      await supabase
+        .from("room_config")
+        .update({ admin_id: null, updated_at: new Date().toISOString() })
+        .eq("id", 1);
+      setRoomStatus({ status: "left" });
+      return;
+    }
 
     // When Speaker leaves, promote next Listener to Speaker
     if (currentUser?.role === "speaker") {
@@ -165,7 +204,11 @@ export function useRoom() {
       }
     }
 
-    await supabase.from("participants").delete().eq("user_id", userId);
+    // If the user exists in participants table, remove them. Otherwise nothing to delete.
+    if (currentUser) {
+      await supabase.from("participants").delete().eq("user_id", userId);
+    }
+
     setRoomStatus({ status: "left" });
   }, [userId]);
 

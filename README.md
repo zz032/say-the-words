@@ -38,6 +38,8 @@ Open [http://localhost:3000](http://localhost:3000).
 
 - **Identity**: Each visitor gets a persistent `userId` in localStorage (generated if missing)
 - **First user** becomes Admin (stored in DB; Admin does NOT count toward 11)
+- **First user** becomes a hidden/invisible Admin: their `userId` is stored in `room_config.admin_id` but they are NOT inserted into the `participants` table, so they do NOT count toward the 11-person capacity. The invisible Admin can see all messages (speaker + all listener replies).
+	- Note: there is also a client-only observer mode `?admin=godmode` that shows the same admin view without being stored as the DB admin.
 - **Second user** becomes Speaker
 - **Next 9 users** become Listeners (max 11 = Speaker + Listeners)
 - **12th participant** sees "Room is full"
