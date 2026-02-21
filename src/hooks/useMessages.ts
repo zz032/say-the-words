@@ -89,27 +89,28 @@ export function useMessages(role: Role | null) {
     }
   }, [role, userId]);
 
-  // 初次加载消息
   useEffect(() => {
     fetchMessages();
   }, [fetchMessages]);
 
-  // 订阅 Supabase 消息变化（修正版，避免返回 Promise）
+  // 修复后的 useEffect：不返回 Promise，清理函数同步
   useEffect(() => {
     const channel = supabase.channel("messages-changes");
+
+    const handler = () => {
+      // 异步调用 fetchMessages，但不返回给 useEffect
+      fetchMessages().catch(console.error);
+    };
 
     channel.on(
       "postgres_changes",
       { event: "*", schema: "public", table: "messages" },
-      () => {
-        // 异步调用 fetchMessages，但不会返回给 useEffect
-        fetchMessages().catch(console.error);
-      }
+      handler
     );
 
     channel.subscribe();
 
-    // 同步清理函数
+    // 返回同步清理函数
     return () => {
       supabase.removeChannel(channel);
     };
