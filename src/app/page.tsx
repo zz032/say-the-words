@@ -5,6 +5,8 @@ import { SpeakerView } from "@/components/SpeakerView";
 import { ListenerView } from "@/components/ListenerView";
 
 export default function Home() {
+  const { roomStatus, leaveRoom, joinRoom } = useRoom();  // Hook 放在最上面
+
   const hasSupabaseConfig =
     typeof process.env.NEXT_PUBLIC_SUPABASE_URL === "string" &&
     typeof process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY === "string";
@@ -25,7 +27,6 @@ export default function Home() {
       </div>
     );
   }
-  const { roomStatus, leaveRoom, joinRoom } = useRoom();
 
   if (roomStatus.status === "loading") {
     return (
