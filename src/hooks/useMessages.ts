@@ -100,17 +100,20 @@ export function useMessages(role: Role | null) {
   }, [fetchMessages]);
 
   useEffect(() => {
-    const channel = supabase
-      .channel("messages-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "messages" },
-        () => fetchMessages()
-      )
-      .subscribe();
+  const channel = supabase
+    .channel("messages-changes")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "messages" },
+      () => fetchMessages()
+    )
+    .subscribe();
 
-    return () => supabase.removeChannel(channel);
-  }, [fetchMessages]);
+  // 同步清理函数，组件卸载时取消订阅
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [fetchMessages]);
 
   const sendMessage = useCallback(
     async (content: string) => {
