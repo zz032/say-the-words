@@ -152,25 +152,44 @@ export function useMessages(role: Role | null, joinedAt?: string | null) {
 
       if (CAN_SEND_AND_SEE_ALL.includes(role)) {
         if (speakerRemaining <= 0) return;
-        await supabase.from("messages").insert({
+        const { data, error } = await supabase.from("messages").insert({
           content: content.trim(),
           sender_role: role,
           sender_user_id: userId,
           reply_to: null,
-        });
+        }).select();
+        if (error) {
+          console.error("Failed to send speaker message:", error);
+          return;
+        }
+        console.log("Speaker message sent:", data);
+        // Fallback: if realtime is not working, refresh manually after a short delay
+        // This ensures messages appear even if realtime publication is not enabled
+        setTimeout(() => {
+          fetchMessages().catch((e) => console.error("Fallback refresh failed:", e));
+        }, 300);
       } else if (role === "listener") {
         if (listenerHasReplied) return;
         // Listeners must reply to an existing speaker message
         if (!replyTo) return;
-        await supabase.from("messages").insert({
+        const { data, error } = await supabase.from("messages").insert({
           content: content.trim(),
           sender_role: "listener",
           sender_user_id: userId,
           reply_to: replyTo,
-        });
+        }).select();
+        if (error) {
+          console.error("Failed to send listener message:", error);
+          return;
+        }
+        console.log("Listener message sent:", data);
+        // Fallback: if realtime is not working, refresh manually
+        setTimeout(() => {
+          fetchMessages().catch((e) => console.error("Fallback refresh failed:", e));
+        }, 300);
       }
     },
-    [userId, role, speakerRemaining, listenerHasReplied]
+    [userId, role, speakerRemaining, listenerHasReplied, fetchMessages]
   );
 
   return {

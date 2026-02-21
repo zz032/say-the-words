@@ -63,6 +63,11 @@ CREATE TABLE IF NOT EXISTS archives (
 
 -- Enable realtime: Go to Supabase Dashboard > Database > Replication
 -- and add "participants", "messages", "room_config" to the supabase_realtime publication.
+-- ⚠️ CRITICAL: Without this step, messages won't sync in real-time across clients.
+-- Steps:
+-- 1. Open Supabase Dashboard > Dashboard > Replication (左侧菜单)
+-- 2. Under "supabase_realtime" publication, enable: participants, messages, room_config
+-- 3. Test: refresh to see if real-time updates appear
 
 -- ========== MIGRATION (if you have existing tables) ==========
 -- Run this if upgrading from the previous schema:
