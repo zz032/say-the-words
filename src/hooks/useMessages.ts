@@ -13,6 +13,8 @@ export interface DisplayMessage {
   content: string;
   isSpeaker: boolean;
   createdAt: string;
+  replyCount?: number;
+  myReplyContent?: string | null;
 }
 
 // Admin 和 Speaker 都可以看到全部消息且可以发送
@@ -51,27 +53,30 @@ export function useMessages(role: Role | null) {
       );
       setSpeakerRemaining(Math.max(0, SPEAKER_DAILY_LIMIT - myMessages.length));
 
-      const speakerAdminMessages = (data ?? []).filter((m) =>
-        ["speaker", "admin"].includes(m.sender_role)
-      );
-      const listenerReplies = (data ?? []).filter((m) => m.sender_role === "listener");
+      const all = data ?? [];
+      const speakerAdminMessages = all.filter((m) => ["speaker", "admin"].includes(m.sender_role));
+      const listenerReplies = all.filter((m) => m.sender_role === "listener");
 
-      const combined: DisplayMessage[] = [
-        ...speakerAdminMessages.map((m) => ({
-          id: m.id,
-          content: m.content,
-          isSpeaker: true,
-          createdAt: m.created_at,
-        })),
-        ...listenerReplies.map((m) => ({
-          id: m.id,
-          content: m.content,
-          isSpeaker: false,
-          createdAt: m.created_at,
-        })),
-      ].sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      );
+      const combined: DisplayMessage[] = speakerAdminMessages
+        .map((m) => {
+          const count = listenerReplies.filter((r) => r.reply_to === m.id).length;
+          return {
+            id: m.id,
+            content: m.content,
+            isSpeaker: true,
+            createdAt: m.created_at,
+            replyCount: count,
+          } as DisplayMessage;
+        })
+        .concat(
+          listenerReplies.map((m) => ({
+            id: m.id,
+            content: m.content,
+            isSpeaker: false,
+            createdAt: m.created_at,
+          }))
+        )
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
       setMessages(combined);
     } else if (role === "listener") {
@@ -80,17 +85,24 @@ export function useMessages(role: Role | null) {
       );
       setListenerHasReplied(hasReplied);
 
-      const speakerAdminOnly = (data ?? []).filter((m) =>
-        ["speaker", "admin"].includes(m.sender_role)
-      );
-      setMessages(
-        speakerAdminOnly.map((m) => ({
+      const all = data ?? [];
+      const speakerAdminOnly = all.filter((m) => ["speaker", "admin"].includes(m.sender_role));
+      const listenerReplies = all.filter((m) => m.sender_role === "listener");
+
+      const combined: DisplayMessage[] = speakerAdminOnly.map((m) => {
+        const count = listenerReplies.filter((r) => r.reply_to === m.id).length;
+        const myReply = listenerReplies.find((r) => r.reply_to === m.id && r.sender_user_id === userId);
+        return {
           id: m.id,
           content: m.content,
           isSpeaker: true,
           createdAt: m.created_at,
-        }))
-      );
+          replyCount: count,
+          myReplyContent: myReply ? myReply.content : null,
+        } as DisplayMessage;
+      });
+
+      setMessages(combined);
     }
   }, [role, userId]);
 
@@ -125,7 +137,7 @@ export function useMessages(role: Role | null) {
   }, [fetchMessages]);
 
   const sendMessage = useCallback(
-    async (content: string) => {
+    async (content: string, replyTo?: string | null) => {
       if (!userId || !role) return;
 
       const supabase = getSupabase();
@@ -137,6 +149,7 @@ export function useMessages(role: Role | null) {
           content: content.trim(),
           sender_role: role,
           sender_user_id: userId,
+          reply_to: null,
         });
       } else if (role === "listener") {
         if (listenerHasReplied) return;
@@ -144,6 +157,7 @@ export function useMessages(role: Role | null) {
           content: content.trim(),
           sender_role: "listener",
           sender_user_id: userId,
+          reply_to: replyTo ?? null,
         });
       }
     },

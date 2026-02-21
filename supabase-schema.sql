@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS messages (
   content TEXT NOT NULL,
   sender_role TEXT NOT NULL CHECK (sender_role IN ('admin', 'speaker', 'listener')),
   sender_user_id TEXT NOT NULL,
+  reply_to UUID NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -45,6 +46,9 @@ CREATE POLICY "Allow all on participants" ON participants FOR ALL USING (true) W
 
 DROP POLICY IF EXISTS "Allow all on messages" ON messages;
 CREATE POLICY "Allow all on messages" ON messages FOR ALL USING (true) WITH CHECK (true);
+
+-- If adding reply_to after initial deploy, ensure column exists
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to UUID NULL;
 
 -- Enable realtime: Go to Supabase Dashboard > Database > Replication
 -- and add "participants", "messages", "room_config" to the supabase_realtime publication.

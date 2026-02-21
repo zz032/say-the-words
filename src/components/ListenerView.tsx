@@ -3,25 +3,44 @@
 import { useState } from "react";
 import { useMessages } from "@/hooks/useMessages";
 
-export function ListenerView() {
+interface ListenerViewProps {
+  onLeaveRoom?: () => void;
+  participantCount?: number;
+}
+
+export function ListenerView({ onLeaveRoom, participantCount }: ListenerViewProps) {
   const { messages, listenerHasReplied, sendMessage } = useMessages("listener");
   const [input, setInput] = useState("");
 
   const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed || listenerHasReplied) return;
-    await sendMessage(trimmed);
+    // Reply to the latest speaker message
+    const lastSpeaker = messages.slice().reverse().find((m) => m.isSpeaker);
+    const replyTo = lastSpeaker ? lastSpeaker.id : null;
+    await sendMessage(trimmed, replyTo);
     setInput("");
   };
 
   return (
     <div className="flex flex-col h-screen max-w-2xl mx-auto px-6 py-8">
       {/* Top */}
-      <div className="mb-6">
-        <p className="text-lg font-medium text-black">You are listening</p>
-        <p className="text-xs text-gray-500 mt-2 max-w-sm">
-          You can send one anonymous reply. Only the Speaker will see it.
-        </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <p className="text-lg font-medium text-black">You are listening</p>
+          <p className="text-xs text-gray-500 mt-2 max-w-sm">
+            You can send one anonymous reply. Only the Speaker will see it.
+          </p>
+        </div>
+        {onLeaveRoom && (
+          <button
+            onClick={onLeaveRoom}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-medium hover:bg-gray-50 transition"
+          >
+            Leave Room
+          </button>
+        )}
+        <div className="ml-4 text-sm text-gray-600">Participants: {participantCount ?? 0} / 11</div>
       </div>
 
       {/* Speaker message history only */}
@@ -30,10 +49,23 @@ export function ListenerView() {
           <p className="text-gray-500 text-sm">No messages from the Speaker yet.</p>
         )}
         {messages.map((msg) => (
-          <div key={msg.id} className="flex justify-start">
-            <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-bl-md bg-gray-100 text-black">
-              <p className="text-sm">{msg.content}</p>
+          <div key={msg.id} className="mb-3">
+            <div className="flex justify-start">
+              <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-bl-md bg-gray-100 text-black">
+                <p className="text-sm">{msg.content}</p>
+                {typeof msg.replyCount === "number" && (
+                  <p className="text-xs text-gray-500 mt-1">Replies: {msg.replyCount}</p>
+                )}
+              </div>
             </div>
+
+            {msg.myReplyContent && (
+              <div className="flex justify-end mt-2">
+                <div className="max-w-[70%] px-3 py-2 rounded-2xl bg-black text-white text-sm">
+                  {msg.myReplyContent}
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>

@@ -8,9 +8,10 @@ const SPEAKER_DAILY_LIMIT = 3;
 interface SpeakerViewProps {
   role: "admin" | "speaker";
   onLeaveRoom: () => void;
+  participantCount?: number;
 }
 
-export function SpeakerView({ role, onLeaveRoom }: SpeakerViewProps) {
+export function SpeakerView({ role, onLeaveRoom, participantCount }: SpeakerViewProps) {
   const {
     messages,
     speakerRemaining,
@@ -36,16 +37,20 @@ export function SpeakerView({ role, onLeaveRoom }: SpeakerViewProps) {
           <p className="text-sm text-gray-600 mt-1">
             Remaining: {speakerRemaining} / {SPEAKER_DAILY_LIMIT}
           </p>
+          <p className="text-sm text-gray-600 mt-1">Participants: {participantCount ?? 0} / 11</p>
           <p className="text-xs text-gray-500 mt-2 max-w-sm">
             You have 3 messages per day. Resets at 6:00 AM Beijing time.
           </p>
         </div>
-        <button
-          onClick={onLeaveRoom}
-          className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium hover:bg-gray-50 transition"
-        >
-          Leave Room
-        </button>
+        <div className="flex items-center gap-4">
+          <p className="text-sm text-gray-600">Participants: {/* placeholder, filled via parent prop */} </p>
+          <button
+            onClick={onLeaveRoom}
+            className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium hover:bg-gray-50 transition"
+          >
+            Leave Room
+          </button>
+        </div>
       </div>
 
       {/* Chat history */}
@@ -66,6 +71,9 @@ export function SpeakerView({ role, onLeaveRoom }: SpeakerViewProps) {
               }`}
             >
               <p className="text-sm">{msg.content}</p>
+              {msg.isSpeaker && typeof msg.replyCount === "number" && (
+                <p className="text-xs text-gray-300 mt-1">Replies: {msg.replyCount}</p>
+              )}
               {!msg.isSpeaker && (
                 <p className="text-xs text-gray-500 mt-1">Anonymous reply</p>
               )}

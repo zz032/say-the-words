@@ -36,5 +36,6 @@ export interface Message {
   content: string;
   sender_role: Role;
   sender_user_id: string;
+  reply_to?: string | null;
   created_at: string;
 }

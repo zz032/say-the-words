@@ -12,7 +12,7 @@ export type RoomStatus =
   | { status: "error"; message: string }
   | { status: "full" }
   | { status: "left" }
-  | { status: "joined"; role: Role; participant: Participant };
+  | { status: "joined"; role: Role; participant: Participant; participantCount: number };
 
 export function useRoom() {
   const [roomStatus, setRoomStatus] = useState<RoomStatus>({ status: "loading" });
@@ -53,6 +53,7 @@ export function useRoom() {
         status: "joined",
         role: existing.role as Role,
         participant: existing as Participant,
+        participantCount,
       });
       return;
     }
@@ -71,6 +72,7 @@ export function useRoom() {
         status: "joined",
         role: "admin",
         participant: fakeParticipant,
+        participantCount,
       });
       return;
     }
@@ -85,63 +87,67 @@ export function useRoom() {
       return;
     }
 
-    // Assign role: first visitor => invisible admin (stored in room_config only), second => speaker, others => listener
-    let role: Role;
-    if (!adminId) {
-      role = "admin";
-    } else if (participantCount === 0) {
-      role = "speaker";
-    } else {
-      role = "listener";
-    }
+    // Assign role: first visitor => invisible admin (try to set atomically), second => speaker, others => listener
+    let role: Role | null = null;
 
-    // Invisible admin: set room_config.admin_id but DO NOT insert into participants
-    if (role === "admin") {
-      const { error: cfgError } = await supabase
+    if (!adminId) {
+      // Try to atomically set admin_id if still null
+      const { data: updated, error: updateError } = await supabase
         .from("room_config")
         .update({ admin_id: userId, updated_at: new Date().toISOString() })
-        .eq("id", 1);
+        .eq("id", 1)
+        .is("admin_id", null)
+        .select()
+        .single();
 
-      if (cfgError) {
-        console.error("Failed to set room admin:", cfgError);
-        setRoomStatus({ status: "error", message: `Failed to set room admin: ${cfgError.message ?? cfgError}` });
-        return;
+      if (updateError && updateError.code !== "PGRST116") {
+        // Log but proceed to re-read
+        console.error("Failed conditional update for admin_id:", updateError);
       }
 
-      const fakeParticipant: Participant = {
-        id: `admin-${userId}` as any,
-        user_id: userId,
-        role: "admin",
-        joined_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-      } as Participant;
-
-      setRoomStatus({ status: "joined", role: "admin", participant: fakeParticipant });
-      return;
+      // Re-fetch room_config.admin_id to see who became admin
+      const { data: rc } = await supabase.from("room_config").select("admin_id").eq("id", 1).single();
+      const finalAdmin = rc?.admin_id ?? null;
+      if (finalAdmin === userId) {
+        role = "admin";
+        const fakeParticipant: Participant = {
+          id: `admin-${userId}` as any,
+          user_id: userId,
+          role: "admin",
+          joined_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        } as Participant;
+        setRoomStatus({ status: "joined", role: "admin", participant: fakeParticipant, participantCount });
+        return;
+      }
+      // If someone else became admin first, fall through to participant logic
     }
 
-    // Normal participant insertion (speaker or listener)
+    // Determine speaker vs listener by current participant count
+    if (participantCount === 0) role = "speaker";
+    else role = "listener";
+
+    // Insert participant (speaker or listener). Handle unique race by re-querying on conflict.
     const { data: newParticipant, error: insertError } = await supabase
       .from("participants")
-      .insert({
-        user_id: userId,
-        role,
-        joined_at: new Date().toISOString(),
-      })
+      .insert({ user_id: userId, role, joined_at: new Date().toISOString() })
       .select()
       .single();
 
     if (insertError) {
+      // If unique constraint on user_id happened (another tab inserted), try to fetch existing
+      console.warn("Insert participant error, retrying fetch:", insertError);
+      const { data: fetched } = await supabase.from("participants").select("*").eq("user_id", userId).single();
+      if (fetched) {
+        setRoomStatus({ status: "joined", role: fetched.role as Role, participant: fetched as Participant, participantCount: participantCount + 1 });
+        return;
+      }
       console.error("Failed to join room:", insertError);
       setRoomStatus({ status: "error", message: `Failed to join room: ${insertError.message ?? insertError}` });
       return;
     }
 
-    setRoomStatus({
-      status: "joined",
-      role,
-      participant: newParticipant as Participant,
-    });
+    setRoomStatus({ status: "joined", role: role as Role, participant: newParticipant as Participant, participantCount: participantCount + 1 });
   }, [userId]);
 
   useEffect(() => {

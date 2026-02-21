@@ -92,10 +92,11 @@ export default function Home() {
         <SpeakerView
           role={roomStatus.role}
           onLeaveRoom={leaveRoom}
+          participantCount={(roomStatus as any).participantCount}
         />
       );
     }
-    return <ListenerView />;
+    return <ListenerView onLeaveRoom={leaveRoom} participantCount={(roomStatus as any).participantCount} />;
   }
 
   return null;
