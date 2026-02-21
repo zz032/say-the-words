@@ -38,7 +38,6 @@ export function useMessages(role: Role | null) {
     const periodStart = getCurrentPeriodStart();
 
     if (role && CAN_SEND_AND_SEE_ALL.includes(role)) {
-      // 计算今日 speaker 剩余次数
       const myMessages = (data ?? []).filter(
         (m) =>
           (m.sender_role === "speaker" || m.sender_role === "admin") &&
@@ -95,13 +94,12 @@ export function useMessages(role: Role | null) {
     fetchMessages();
   }, [fetchMessages]);
 
-  // 实时订阅消息变动
+  // 实时订阅消息变动，确保返回同步清理函数
   useEffect(() => {
     const channel = supabase.channel("messages-changes");
 
-    // 异步函数内部捕获错误，保证 useEffect 返回值同步
     const handler = () => {
-      fetchMessages().catch(console.error);
+      fetchMessages().catch(console.error); // 内部异步处理
     };
 
     channel.on(
