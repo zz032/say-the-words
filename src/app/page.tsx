@@ -93,10 +93,18 @@ export default function Home() {
           role={roomStatus.role}
           onLeaveRoom={leaveRoom}
           participantCount={(roomStatus as any).participantCount}
+          joinedAt={(roomStatus as any).participant?.joined_at}
         />
       );
     }
-    return <ListenerView onLeaveRoom={leaveRoom} participantCount={(roomStatus as any).participantCount} />;
+    return (
+      <ListenerView
+        onLeaveRoom={leaveRoom}
+        participantCount={(roomStatus as any).participantCount}
+        joinedAt={(roomStatus as any).participant?.joined_at}
+        hasSpokenToday={(roomStatus as any).hasSpokenToday}
+      />
+    );
   }
 
   return null;

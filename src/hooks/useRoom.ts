@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { getUserId } from "@/lib/utils";
+import { getCurrentPeriodStart } from "@/lib/utils";
 import type { Participant, Role } from "@/lib/supabase";
 
 const MAX_PARTICIPANTS = 11; // Speaker + Listeners (Admin does NOT count)
@@ -12,7 +13,14 @@ export type RoomStatus =
   | { status: "error"; message: string }
   | { status: "full" }
   | { status: "left" }
-  | { status: "joined"; role: Role; participant: Participant; participantCount: number };
+  | {
+      status: "joined";
+      role: Role;
+      participant: Participant;
+      participantCount: number;
+      // 如果用户当天已经发言过，标记为 true（用于 UI 提示与角色限制）
+      hasSpokenToday?: boolean;
+    };
 
 export function useRoom() {
   const [roomStatus, setRoomStatus] = useState<RoomStatus>({ status: "loading" });
@@ -88,7 +96,18 @@ export function useRoom() {
       return;
     }
 
-    // Assign role: first visitor => invisible admin (try to set atomically), second => speaker, others => listener
+    // Determine whether the user has already spoken today.
+    const periodStart = getCurrentPeriodStart();
+    const { data: recentSpeakerMsgs } = await supabase
+      .from("messages")
+      .select("id")
+      .eq("sender_user_id", userId)
+      .eq("sender_role", "speaker")
+      .gte("created_at", periodStart)
+      .limit(1);
+    const hasSpokenToday = (recentSpeakerMsgs && (recentSpeakerMsgs as any[]).length > 0) || false;
+
+    // Assign role: first visitor => invisible admin (try to set atomically), second => speaker (unless user already spoke today), others => listener
     let role: Role | null = null;
 
     if (!adminId) {
@@ -125,8 +144,10 @@ export function useRoom() {
     }
 
     // Determine speaker vs listener by current participant count
-    if (participantCount === 0) role = "speaker";
-    else role = "listener";
+    if (participantCount === 0) {
+      // If the user already spoke today, do NOT assign speaker again; make them a listener instead.
+      role = hasSpokenToday ? "listener" : "speaker";
+    } else role = "listener";
 
     // Insert participant (speaker or listener). Handle unique race by re-querying on conflict.
     const { data: newParticipant, error: insertError } = await supabase
@@ -140,7 +161,7 @@ export function useRoom() {
       console.warn("Insert participant error, retrying fetch:", insertError);
       const { data: fetched } = await supabase.from("participants").select("*").eq("user_id", userId).single();
       if (fetched) {
-        setRoomStatus({ status: "joined", role: fetched.role as Role, participant: fetched as Participant, participantCount: participantCount + 1 });
+        setRoomStatus({ status: "joined", role: fetched.role as Role, participant: fetched as Participant, participantCount: participantCount + 1, hasSpokenToday });
         return;
       }
       console.error("Failed to join room:", insertError);
@@ -148,7 +169,7 @@ export function useRoom() {
       return;
     }
 
-    setRoomStatus({ status: "joined", role: role as Role, participant: newParticipant as Participant, participantCount: participantCount + 1 });
+    setRoomStatus({ status: "joined", role: role as Role, participant: newParticipant as Participant, participantCount: participantCount + 1, hasSpokenToday });
   }, [userId]);
 
   useEffect(() => {
@@ -202,12 +223,23 @@ export function useRoom() {
     // When Speaker leaves, promote next Listener to Speaker
     if (currentUser?.role === "speaker") {
       const listeners = participants?.filter((p) => p.role === "listener") ?? [];
-      const firstListener = listeners[0];
-      if (firstListener) {
-        await supabase
-          .from("participants")
-          .update({ role: "speaker" })
-          .eq("id", firstListener.id);
+      if (listeners.length > 0) {
+        // Skip listeners who have already spoken today
+        const periodStart = getCurrentPeriodStart();
+        const listenerUserIds = listeners.map((l) => l.user_id);
+        const { data: spoken } = await supabase
+          .from("messages")
+          .select("sender_user_id")
+          .in("sender_user_id", listenerUserIds)
+          .eq("sender_role", "speaker")
+          .gte("created_at", periodStart);
+        const spokenSet = new Set((spoken as any[] || []).map((s) => s.sender_user_id));
+
+        const eligible = listeners.find((l) => !spokenSet.has(l.user_id));
+        if (eligible) {
+          await supabase.from("participants").update({ role: "speaker" }).eq("id", eligible.id);
+        }
+        // If none eligible, do not promote anyone this round
       }
     }
 

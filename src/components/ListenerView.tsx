@@ -6,10 +6,12 @@ import { useMessages } from "@/hooks/useMessages";
 interface ListenerViewProps {
   onLeaveRoom?: () => void;
   participantCount?: number;
+  joinedAt?: string | null;
+  hasSpokenToday?: boolean;
 }
 
-export function ListenerView({ onLeaveRoom, participantCount }: ListenerViewProps) {
-  const { messages, listenerHasReplied, sendMessage } = useMessages("listener");
+export function ListenerView({ onLeaveRoom, participantCount, joinedAt, hasSpokenToday }: ListenerViewProps) {
+  const { messages, listenerHasReplied, sendMessage } = useMessages("listener", joinedAt);
   const [input, setInput] = useState("");
 
   const handleSend = async () => {
@@ -31,6 +33,9 @@ export function ListenerView({ onLeaveRoom, participantCount }: ListenerViewProp
           <p className="text-xs text-gray-500 mt-2 max-w-sm">
             You can send one anonymous reply. Only the Speaker will see it.
           </p>
+          {hasSpokenToday && (
+            <p className="text-sm text-red-600 mt-2">您今天已经发言过，请等待其余发言者。</p>
+          )}
         </div>
         {onLeaveRoom && (
           <button

@@ -20,7 +20,9 @@ export interface DisplayMessage {
 // Admin 和 Speaker 都可以看到全部消息且可以发送
 const CAN_SEND_AND_SEE_ALL: Role[] = ["admin", "speaker"];
 
-export function useMessages(role: Role | null) {
+// `joinedAt` should be the ISO timestamp when the current user joined the room.
+// Users who are not `admin` will only see messages with created_at >= joinedAt.
+export function useMessages(role: Role | null, joinedAt?: string | null) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [speakerRemaining, setSpeakerRemaining] = useState<number>(SPEAKER_DAILY_LIMIT);
   const [listenerHasReplied, setListenerHasReplied] = useState<boolean>(false);
@@ -32,10 +34,15 @@ export function useMessages(role: Role | null) {
       console.error("Supabase not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.");
       return;
     }
-    const { data, error } = await supabase
-      .from("messages")
-      .select("*")
-      .order("created_at", { ascending: true });
+    // Admin can see everything. Other roles only see messages created after they joined.
+    const SEE_ALL: Role[] = ["admin"];
+
+    let query = supabase.from("messages").select("*").order("created_at", { ascending: true });
+    if (!(role && SEE_ALL.includes(role)) && joinedAt) {
+      query = query.gte("created_at", joinedAt);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("Failed to fetch messages:", error);

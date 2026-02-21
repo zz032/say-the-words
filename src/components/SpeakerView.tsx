@@ -10,14 +10,15 @@ interface SpeakerViewProps {
   role: "admin" | "speaker";
   onLeaveRoom: () => void;
   participantCount?: number;
+  joinedAt?: string | null;
 }
 
-export function SpeakerView({ role, onLeaveRoom, participantCount }: SpeakerViewProps) {
+export function SpeakerView({ role, onLeaveRoom, participantCount, joinedAt }: SpeakerViewProps) {
   const {
     messages,
     speakerRemaining,
     sendMessage,
-  } = useMessages(role);
+  } = useMessages(role, joinedAt);
   const [input, setInput] = useState("");
 
   const handleSend = async () => {
