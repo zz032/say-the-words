@@ -160,11 +160,13 @@ export function useMessages(role: Role | null, joinedAt?: string | null) {
         });
       } else if (role === "listener") {
         if (listenerHasReplied) return;
+        // Listeners must reply to an existing speaker message
+        if (!replyTo) return;
         await supabase.from("messages").insert({
           content: content.trim(),
           sender_role: "listener",
           sender_user_id: userId,
-          reply_to: replyTo ?? null,
+          reply_to: replyTo,
         });
       }
     },

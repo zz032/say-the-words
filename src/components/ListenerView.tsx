@@ -17,9 +17,10 @@ export function ListenerView({ onLeaveRoom, participantCount, joinedAt, hasSpoke
   const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed || listenerHasReplied) return;
-    // Reply to the latest speaker message
+    // Reply to the latest speaker message; if none exist, do not allow sending
     const lastSpeaker = messages.slice().reverse().find((m) => m.isSpeaker);
-    const replyTo = lastSpeaker ? lastSpeaker.id : null;
+    if (!lastSpeaker) return; // nothing to reply to
+    const replyTo = lastSpeaker.id;
     await sendMessage(trimmed, replyTo);
     setInput("");
   };
@@ -82,22 +83,29 @@ export function ListenerView({ onLeaveRoom, participantCount, joinedAt, hasSpoke
             You have completed your reply.
           </p>
         ) : (
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSend()}
-              placeholder="Type your reply..."
-              className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-300"
-            />
-            <button
-              onClick={handleSend}
-              disabled={!input.trim()}
-              className="px-5 py-3 rounded-xl bg-black text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-800 transition"
-            >
-              Send
-            </button>
+          <div className="flex flex-col gap-2">
+            {/* 如果没有任何 speaker 消息，禁用输入并提示 */}
+            {messages.filter((m) => m.isSpeaker).length === 0 ? (
+              <p className="text-sm text-gray-500 py-2">等待发言者发言后才能回复。</p>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                  placeholder="Type your reply..."
+                  className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={!input.trim()}
+                  className="px-5 py-3 rounded-xl bg-black text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-800 transition"
+                >
+                  Send
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
