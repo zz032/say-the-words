@@ -2,17 +2,19 @@
 -- Go to: Supabase Dashboard > SQL Editor > New Query
 -- For existing projects: run the migration section at the bottom instead.
 
--- Room config: stores adminId (first user). Admin does NOT count toward 11-participant limit.
-CREATE TABLE room_config (
+-- Create table if missing and ensure an initial row (id = 1)
+CREATE TABLE IF NOT EXISTS room_config (
   id INT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
   admin_id TEXT,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-INSERT INTO room_config (id, admin_id) VALUES (1, NULL);
+INSERT INTO room_config (id, admin_id, updated_at)
+VALUES (1, NULL, now())
+ON CONFLICT (id) DO NOTHING;
 
 -- Participants: admin (1) + speaker (1) + listeners (up to 10). Max 11 = speaker + listeners.
-CREATE TABLE participants (
+CREATE TABLE IF NOT EXISTS participants (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id TEXT UNIQUE NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('admin', 'speaker', 'listener')),
@@ -21,7 +23,7 @@ CREATE TABLE participants (
 );
 
 -- Messages: speaker/admin messages visible to all, listener messages visible only to speaker/admin
-CREATE TABLE messages (
+CREATE TABLE IF NOT EXISTS messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   content TEXT NOT NULL,
   sender_role TEXT NOT NULL CHECK (sender_role IN ('admin', 'speaker', 'listener')),
@@ -34,8 +36,14 @@ ALTER TABLE room_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE participants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
+-- Create permissive policies for development; use DROP ... IF EXISTS first to avoid errors
+DROP POLICY IF EXISTS "Allow all on room_config" ON room_config;
 CREATE POLICY "Allow all on room_config" ON room_config FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all on participants" ON participants;
 CREATE POLICY "Allow all on participants" ON participants FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all on messages" ON messages;
 CREATE POLICY "Allow all on messages" ON messages FOR ALL USING (true) WITH CHECK (true);
 
 -- Enable realtime: Go to Supabase Dashboard > Database > Replication

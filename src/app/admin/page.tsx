@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { supabase, type Participant, type Message, type Role } from "@/lib/supabase";
+import { getSupabase, supabase, type Participant, type Message, type Role } from "@/lib/supabase";
 import { getUserId } from "@/lib/utils";
 
 interface RoomConfig {
@@ -24,10 +24,13 @@ export default function AdminPage() {
   const loadData = useCallback(async () => {
     if (!userId) return;
 
+    const sb = getSupabase() ?? supabase;
+    if (!sb) return;
+
     const [{ data: config }, { data: parts }, { data: msgs }] = await Promise.all([
-      supabase.from("room_config").select("admin_id").eq("id", 1).single(),
-      supabase.from("participants").select("*").order("joined_at", { ascending: true }),
-      supabase.from("messages").select("*").order("created_at", { ascending: true }),
+      sb.from("room_config").select("admin_id").eq("id", 1).single(),
+      sb.from("participants").select("*").order("joined_at", { ascending: true }),
+      sb.from("messages").select("*").order("created_at", { ascending: true }),
     ]);
 
     setRoomConfig({ admin_id: config?.admin_id ?? null });
@@ -41,7 +44,10 @@ export default function AdminPage() {
   }, [loadData]);
 
   useEffect(() => {
-    const participantsChannel = supabase
+    const sb = getSupabase() ?? supabase;
+    if (!sb) return;
+
+    const participantsChannel = sb
       .channel("admin-participants")
       .on(
         "postgres_changes",
@@ -50,7 +56,7 @@ export default function AdminPage() {
       )
       .subscribe();
 
-    const messagesChannel = supabase
+    const messagesChannel = sb
       .channel("admin-messages")
       .on(
         "postgres_changes",
@@ -60,8 +66,8 @@ export default function AdminPage() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(participantsChannel);
-      supabase.removeChannel(messagesChannel);
+      sb.removeChannel(participantsChannel);
+      sb.removeChannel(messagesChannel);
     };
   }, [loadData]);
 
