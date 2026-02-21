@@ -50,6 +50,17 @@ CREATE POLICY "Allow all on messages" ON messages FOR ALL USING (true) WITH CHEC
 -- If adding reply_to after initial deploy, ensure column exists
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to UUID NULL;
 
+-- Archives: store exported chat rounds and metadata for admin inspection
+CREATE TABLE IF NOT EXISTS archives (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_user_id TEXT,
+  participant_count INT DEFAULT 0,
+  speaker_change_count INT DEFAULT 0,
+  participants JSONB,
+  messages JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Enable realtime: Go to Supabase Dashboard > Database > Replication
 -- and add "participants", "messages", "room_config" to the supabase_realtime publication.
 

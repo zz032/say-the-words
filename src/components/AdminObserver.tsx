@@ -21,6 +21,57 @@ export default function AdminObserver() {
     setLoading(false);
   }, []);
 
+  const kickAll = useCallback(async () => {
+    if (!confirm("Kick all participants (except admin)? This cannot be undone.")) return;
+    const sb = getSupabase();
+    if (!sb) return;
+
+    // Export archive: collect messages and participants, compute counts
+    try {
+      const [{ data: parts }, { data: msgs }, { data: rc }] = await Promise.all([
+        sb.from("participants").select("id,user_id,role,joined_at,created_at").order("joined_at", { ascending: true }),
+        sb.from("messages").select("id,content,sender_role,sender_user_id,reply_to,created_at").order("created_at", { ascending: true }),
+        sb.from("room_config").select("admin_id").eq("id", 1).single(),
+      ]);
+
+      const messages = (msgs as any[]) || [];
+      const participantsArr = (parts as any[]) || [];
+
+      // Total participants: distinct user_ids among participants and message senders (exclude admin)
+      const userIdSet = new Set<string>();
+      participantsArr.forEach((p) => {
+        if (p && p.user_id) userIdSet.add(p.user_id);
+      });
+      messages.forEach((m) => {
+        if (m && m.sender_user_id) userIdSet.add(m.sender_user_id);
+      });
+      const participantCount = userIdSet.size;
+
+      // Speaker change count: number of distinct speaker user_ids seen in messages (minus 1)
+      const speakerSet = new Set<string>();
+      messages.forEach((m) => {
+        if (m.sender_role === "speaker" && m.sender_user_id) speakerSet.add(m.sender_user_id);
+      });
+      const speakerChangeCount = Math.max(0, speakerSet.size - 1);
+
+      // Insert archive record
+      await sb.from("archives").insert({
+        admin_user_id: rc?.admin_id ?? null,
+        participant_count: participantCount,
+        speaker_change_count: speakerChangeCount,
+        participants: JSON.stringify(participantsArr),
+        messages: JSON.stringify(messages),
+      });
+    } catch (err) {
+      console.error("Failed to export archive:", err);
+    }
+
+    // Delete all participants (admin is not stored in participants, but keep safe check)
+    await sb.from("participants").delete().neq("role", "admin");
+    // Refresh data
+    await load();
+  }, [load]);
+
   useEffect(() => {
     load();
   }, [load]);
@@ -76,6 +127,14 @@ export default function AdminObserver() {
         <div className="rounded-xl border border-gray-200 p-4">
           <p className="text-xs text-gray-500 mb-1">Mode</p>
           <p className="text-lg font-medium">Observer</p>
+        </div>
+        <div className="rounded-xl border border-gray-200 p-4 flex items-center justify-center">
+          <button
+            onClick={kickAll}
+            className="px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition"
+          >
+            Kick All
+          </button>
         </div>
         <div className="rounded-xl border border-gray-200 p-4">
           <p className="text-xs text-gray-500 mb-1">Current Speaker</p>

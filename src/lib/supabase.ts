@@ -39,3 +39,13 @@ export interface Message {
   reply_to?: string | null;
   created_at: string;
 }
+
+export interface Archive {
+  id: string;
+  admin_user_id: string | null;
+  participant_count: number;
+  speaker_change_count: number;
+  participants: any;
+  messages: any;
+  created_at: string;
+}
