@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getSupabase } from "@/lib/supabase";
 import { useMessages } from "@/hooks/useMessages";
 
 const SPEAKER_DAILY_LIMIT = 3;
@@ -43,13 +44,57 @@ export function SpeakerView({ role, onLeaveRoom, participantCount }: SpeakerView
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <p className="text-sm text-gray-600">Participants: {/* placeholder, filled via parent prop */} </p>
-          <button
-            onClick={onLeaveRoom}
-            className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium hover:bg-gray-50 transition"
-          >
-            Leave Room
-          </button>
+          {role !== "admin" ? (
+            <button
+              onClick={onLeaveRoom}
+              className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium hover:bg-gray-50 transition"
+            >
+              Leave Room
+            </button>
+          ) : (
+            <button
+              onClick={async () => {
+                if (!confirm("Kick all participants (except admin)? This will archive the round and remove participants.")) return;
+                const sb = getSupabase();
+                if (!sb) return;
+                try {
+                  const [{ data: parts }, { data: msgs }, { data: rc }] = await Promise.all([
+                    sb.from("participants").select("id,user_id,role,joined_at,created_at").order("joined_at", { ascending: true }),
+                    sb.from("messages").select("id,content,sender_role,sender_user_id,reply_to,created_at").order("created_at", { ascending: true }),
+                    sb.from("room_config").select("admin_id").eq("id", 1).single(),
+                  ]);
+
+                  const messages = (msgs as any[]) || [];
+                  const participantsArr = (parts as any[]) || [];
+
+                  const userIdSet = new Set<string>();
+                  participantsArr.forEach((p) => { if (p && p.user_id) userIdSet.add(p.user_id); });
+                  messages.forEach((m) => { if (m && m.sender_user_id) userIdSet.add(m.sender_user_id); });
+                  const participantCountExport = userIdSet.size;
+
+                  const speakerSet = new Set<string>();
+                  messages.forEach((m) => { if (m.sender_role === "speaker" && m.sender_user_id) speakerSet.add(m.sender_user_id); });
+                  const speakerChangeCount = Math.max(0, speakerSet.size - 1);
+
+                  await sb.from("archives").insert({
+                    admin_user_id: rc?.admin_id ?? null,
+                    participant_count: participantCountExport,
+                    speaker_change_count: speakerChangeCount,
+                    participants: JSON.stringify(participantsArr),
+                    messages: JSON.stringify(messages),
+                  });
+                } catch (err) {
+                  console.error("Failed to export archive:", err);
+                }
+
+                await sb.from("participants").delete().neq("role", "admin");
+                window.location.reload();
+              }}
+              className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition"
+            >
+              Kick All
+            </button>
+          )}
         </div>
       </div>
 
